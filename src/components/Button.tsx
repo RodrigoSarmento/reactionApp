@@ -52,8 +52,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   textOutline: {
-    color: 'white',
-    fontSize: 38,
+    color: 'black',
+    fontSize: 30,
     fontWeight: '700',
   },
   outlineContainer: {
@@ -61,6 +61,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderColor: '#262626',
     width: screenWidth * 0.7,
+    borderWidth: 1,
     height: 90,
     borderRadius: 12,
   },

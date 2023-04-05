@@ -8,6 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import {Button, CountDown, InputButtons} from './src/components';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const COLORS = ['red', 'green', 'blue', 'yellow'];
 export const screenHeight = Dimensions.get('window').height;
@@ -16,10 +17,16 @@ export const screenWidth = Dimensions.get('window').width;
 const START_TIME = 0;
 
 function App() {
+  const [gameResult, setGameResult] = useState({
+    score: 0,
+    averageTime: 0,
+  });
   const [isPlaying, setIsPlaying] = useState(false);
-  const [numberOfRightAnswer, setNumberOfRightAnswer] = useState(0);
-  const [numberOfWrongAnswer, setNumberOfWrongAnswer] = useState(0);
+  const [score, setScore] = useState(0);
+  const [numberOfBallsLeft, setNumberOfBallsLeft] = useState(10);
   const [timeToStart, setTimeToStart] = useState(START_TIME);
+  const [ballTimestampStart, setBallTimestampStart] = useState(0);
+  const [ballTimestampEnd, setBallTimestampEnd] = useState(0);
   const [ballProps, setBallProps] = useState<{
     color: 'blue' | 'red' | 'yellow' | 'green';
     distanceFromTop: number;
@@ -31,6 +38,17 @@ function App() {
   });
 
   const [animation] = useState(new Animated.Value(0));
+
+  const getGameResults = async () => {
+    const results = await AsyncStorage.getItem('game_results');
+    if (results !== null) {
+      setGameResult(JSON.parse(results));
+    }
+  };
+
+  useEffect(() => {
+    getGameResults();
+  }, []);
 
   useEffect(() => {
     Animated.timing(animation, {
@@ -63,8 +81,16 @@ function App() {
   const onStartButtonPress = () => {
     setTimeToStart(START_TIME);
     setIsPlaying(true);
-    setNumberOfRightAnswer(0);
-    setNumberOfRightAnswer(0);
+    setScore(0);
+    setNumberOfBallsLeft(10);
+    setBallTimestampStart(Date.now());
+  };
+
+  const onResetButtonPress = () => {
+    setTimeToStart(START_TIME);
+    setIsPlaying(false);
+    setScore(0);
+    setNumberOfBallsLeft(10);
   };
 
   const renderBall = (
@@ -87,21 +113,44 @@ function App() {
 
   const renderGaming = () => {
     const {text24, restartButton, resultContainer} = styles;
-    if (numberOfRightAnswer + numberOfWrongAnswer > -1) {
+    if (numberOfBallsLeft === 0) {
+      const totalTime = ballTimestampEnd - ballTimestampStart;
+      const averageTime = totalTime / 10;
+      if (
+        (score > gameResult.score && score > 0) ||
+        (averageTime < gameResult.averageTime && averageTime > 0)
+      ) {
+        setGameResult({score, averageTime});
+        AsyncStorage.setItem(
+          'game_results',
+          JSON.stringify({
+            score: score,
+            averageTime: averageTime,
+          }),
+        );
+      }
+
       return (
         <View style={centralizeContainer}>
           <View style={resultContainer}>
+            <Text style={text24}>Pontuação {score}</Text>
             <Text style={text24}>
-              Quantidade de acertos: {numberOfRightAnswer}
+              Tempo total {(totalTime / 1000).toFixed(3)} segundos
             </Text>
             <Text style={text24}>
-              Quantidade de erros: {numberOfWrongAnswer}
+              Tempo médio {(averageTime / 1000).toFixed(3)} segundos
             </Text>
           </View>
           <Button
             customStyle={restartButton}
             text={'Jogar de novo'}
             onButtonPress={() => onStartButtonPress()}
+          />
+          <Button
+            variant={'outline'}
+            customStyle={restartButton}
+            text={'Voltar para início'}
+            onButtonPress={() => onResetButtonPress()}
           />
         </View>
       );
@@ -119,12 +168,19 @@ function App() {
             <InputButtons
               color={ballProps.color}
               onChangeBallProperties={() => changeBallProperties()}
-              increaseRight={() =>
-                setNumberOfRightAnswer(numberOfRightAnswer + 1)
-              }
-              increaseWrong={() =>
-                setNumberOfWrongAnswer(numberOfWrongAnswer + 1)
-              }
+              increaseRight={() => {
+                setScore(score + 1);
+                setNumberOfBallsLeft(numberOfBallsLeft - 1);
+                if (numberOfBallsLeft === 1) {
+                  setBallTimestampEnd(Date.now());
+                }
+              }}
+              increaseWrong={() => {
+                setScore(score - 1);
+                if (numberOfBallsLeft === 1) {
+                  setBallTimestampEnd(Date.now());
+                }
+              }}
             />
           </View>
         </View>
@@ -133,10 +189,19 @@ function App() {
   };
 
   const renderStart = () => {
-    const {myNameText} = initialScreenStyles;
+    const {myNameText, gameResultText, gameResultContainer} =
+      initialScreenStyles;
 
     return (
       <View style={centralizeContainer}>
+        <View style={gameResultContainer}>
+          <Text style={gameResultText}>Score Máximo: {gameResult.score}</Text>
+          <Text style={gameResultText}>
+            Melhor tempo médio: {(gameResult.averageTime / 1000).toFixed(3)}{' '}
+            segundos
+          </Text>
+        </View>
+
         <Button text={'Iniciar'} onButtonPress={() => onStartButtonPress()} />
         <Text style={myNameText}>Trabalho de Rodrigo Sarmento</Text>
       </View>
@@ -167,6 +232,13 @@ const initialScreenStyles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
   },
+  gameResultText: {fontSize: 20},
+  gameResultContainer: {
+    position: 'absolute',
+    top: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
 
 const styles = StyleSheet.create({
@@ -185,9 +257,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   text24: {
-    fontSize: 24,
+    fontSize: 20,
   },
-  restartButton: {marginTop: 24},
+  restartButton: {marginTop: 24, marginBottom: 24},
   resultContainer: {alignItems: 'flex-start', gap: 8},
 });
 
